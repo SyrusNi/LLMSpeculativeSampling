@@ -3,25 +3,22 @@ import torch
 import argparse
 import contexttimer
 from colorama import Fore, Style
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM # for T5 series model
 
 from sampling import autoregressive_sampling, speculative_sampling, speculative_sampling_v2
 from globals import Decoder
 
-
-
-
-# my local models
 MODELZOO = {
-    # llama-1
-    # https://huggingface.co/PY007/TinyLlama-1.1B-step-50K-105b
-    "llama1b": "/share_nfs/fangjiarui/root/code/hf_models/TinyLlama-1.1B-step-50K-105b",
+    # models I have tried
+    "llama1b": "D:\Data\LLMSpeculativeSampling\model\TinyLlama-1.1B",
+    "llama2-7b": "D:\Data\LLMSpeculativeSampling\model\Llama-2-7b",
+    "t5-small": r"D:\Data\LLMSpeculativeSampling\model\flan-t5-small",
+    "bloom-560m": r"D:\Data\LLMSpeculativeSampling\model\bloom-560m",
+    "bloom7b": r"D:\Data\LLMSpeculativeSampling\model\bloomz-7b1",
+    # models for reference
     "llama7b": "/share_nfs/tianzhi/code/llama-7b",
     "llama30b": "/share_nfs/fangjiarui/root/code/hf_models/llama-30b-hf",
-    "llama2-7b" : "/share_nfs/fangjiarui/root/code/hf_models/llama-2-7b-hf",
     "llama2-70b" : "/share_nfs/fangjiarui/root/code/hf_models/llama-2-70b-hf",
-    "bloom-560m": "/share_nfs/fangjiarui/root/code/hf_models/bloom-560m",
-    "bloom7b": "/share_nfs/fangjiarui/root/code/hf_models/bloomz-7b1",
     "baichuan-7b": "/share_nfs/duanqiyuan/models/source_models/hf/baichuan-7B",
     "baichuan-13b": "/share_nfs/duanqiyuan/models/source_models/hf/Baichuan-13B-Base",
 }
@@ -36,6 +33,7 @@ def parse_arguments():
     parser.add_argument('--seed', '-s', type=int, default=None, help='set a random seed, which can makes the result reproducible')
     parser.add_argument('--benchmark', '-b', action='store_true', default=False, help='show benchmark results.')
     parser.add_argument('--profiling', '-p', action='store_true', default=False, help='collect torch profiler results.')
+    #parser.add_argument("--load_in_4bit", type=bool, default=True, help='load in 4bit at a local computer')
     parser.add_argument('--max_tokens', '-M', type=int, default=20, help='max token number generated.')
     parser.add_argument('--gamma', '-g', type=int, default=4, help='guess time.')
     args = parser.parse_args()
@@ -46,6 +44,9 @@ def color_print(text):
     print(Fore.RED + text + Style.RESET_ALL)
     
 def benchmark(fn, print_prefix, use_profiler=True, *args, **kwargs):
+    '''
+    repeat the fn for [TEST_TIME] and test the average time cost
+    '''
     TEST_TIME = 10
     profile_filename = f"./profile_logs/{print_prefix}"
     
@@ -66,7 +67,7 @@ def benchmark(fn, print_prefix, use_profiler=True, *args, **kwargs):
             for _ in range(TEST_TIME): 
                 output = fn(*args, **kwargs)
 
-    print(f"\n [benchmark] {print_prefix}, tokens/sec: {len(output[0]) / t.elapsed / TEST_TIME}, {t.elapsed / TEST_TIME} sec generates {len(output[0])} tokens")
+    print(f"\n [benchmark] {print_prefix}, tokens/sec: {len(output[0]) / (t.elapsed / TEST_TIME)}, {t.elapsed / TEST_TIME} sec generates {len(output[0])} tokens")
 
 def generate(input_text, approx_model_name, target_model_name, num_tokens=20, gamma = 4,
              random_seed = None, verbose = False, use_benchmark = False, use_profiling = False):
@@ -80,12 +81,14 @@ def generate(input_text, approx_model_name, target_model_name, num_tokens=20, ga
     
     print(f"begin loading models: \n {approx_model_name} \n {target_model_name}")
     small_model = AutoModelForCausalLM.from_pretrained(approx_model_name, 
-                                                       torch_dtype=torch.float16,
+                                                       #torch_dtype=torch.float16,
                                                        device_map="auto",
+                                                       load_in_4bit=True,
                                                        trust_remote_code=True)
     large_model = AutoModelForCausalLM.from_pretrained(target_model_name, 
-                                                       torch_dtype=torch.float16,
+                                                       #torch_dtype=torch.float16,
                                                        device_map="auto",
+                                                       load_in_4bit=True,
                                                        trust_remote_code=True)
     print("finish loading models")
     
@@ -129,5 +132,5 @@ def generate(input_text, approx_model_name, target_model_name, num_tokens=20, ga
 if __name__ == "__main__":
     args = parse_arguments()
     
-    generate(args.input, args.approx_model_name, args.target_model_name, num_tokens=args.max_tokens, gamma=args.gamma,
+    generate(args.input, MODELZOO[args.approx_model_name], MODELZOO[args.target_model_name], num_tokens=args.max_tokens, gamma=args.gamma,
              random_seed = args.seed, verbose=args.verbose, use_benchmark = args.benchmark)

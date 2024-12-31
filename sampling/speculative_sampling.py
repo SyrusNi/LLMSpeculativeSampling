@@ -45,7 +45,8 @@ def speculative_sampling(prefix : torch.Tensor, approx_model : torch.nn.Module, 
     target_sample_count = 0
     accepted_count = 0
     
-    while prefix.shape[1] < T:
+    while prefix.shape[1] < T: 
+        # since approx_model generate gamma tokens in a single loop, the sequence length may end up more than T
         # q = M_q[prefix + x_0, x_1, .., x_(gamma-2)]
         prefix_len = prefix.shape[1]
 
@@ -59,7 +60,7 @@ def speculative_sampling(prefix : torch.Tensor, approx_model : torch.nn.Module, 
             if random_seed:
                 torch.manual_seed(random_seed)
             r = torch.rand(1, device = device)
-            j = x[:, prefix_len + i]
+            j = x[:, prefix_len + i] # ids of the sampled token
             
             if r > (target_model_cache._prob_history[:, prefix_len + i - 1, j]) / (approx_model_cache._prob_history[:, prefix_len + i - 1, j]):
                 # reject
