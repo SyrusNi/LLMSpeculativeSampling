@@ -9,7 +9,8 @@ from globals import Decoder
 @torch.no_grad()
 def speculative_sampling(prefix : torch.Tensor, approx_model : torch.nn.Module, target_model : torch.nn.Module, 
                          max_len : int , gamma : int = 4,
-                         temperature : float = 1, top_k : int = 0, top_p : float = 0, verbose : bool = False, random_seed : int = None) -> torch.Tensor:
+                         approx_tmp : float = 1, target_tmp : float = 1, top_k : int = 0, top_p : float = 0, 
+                         verbose : bool = False, benchmark : bool = False, random_seed : int = None) -> torch.Tensor:
     """
     Google version Speculative Sampling.
     https://arxiv.org/pdf/2211.17192.pdf
@@ -38,8 +39,8 @@ def speculative_sampling(prefix : torch.Tensor, approx_model : torch.nn.Module, 
     
     device = target_model.device
     
-    approx_model_cache = KVCacheModel(approx_model, temperature, top_k, top_p)
-    target_model_cache = KVCacheModel(target_model, temperature, top_k, top_p)
+    approx_model_cache = KVCacheModel(approx_model, approx_tmp, top_k, top_p)
+    target_model_cache = KVCacheModel(target_model, target_tmp, top_k, top_p)
     
     resample_count = 0
     target_sample_count = 0
@@ -99,7 +100,8 @@ def speculative_sampling(prefix : torch.Tensor, approx_model : torch.nn.Module, 
         
         prefix = torch.cat((prefix, t), dim=1)
 
-    if verbose:
+    if not benchmark: # avoid the report in the benchmark stage
+        print()
         print(f"generated tokens numbers {prefix.shape[-1] - seq_len}, accepted_count {accepted_count}, target_sample_count {target_sample_count}, resample_count {resample_count}")
     return prefix
 

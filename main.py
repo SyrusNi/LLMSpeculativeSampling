@@ -1,4 +1,3 @@
-
 import torch
 import argparse
 import contexttimer
@@ -26,9 +25,11 @@ MODELZOO = {
 def parse_arguments():
     parser = argparse.ArgumentParser(description='args for main.py')
 
-    parser.add_argument('--input', type=str, default="Any recommendations for my holidays in Abu Dhabi?")
+    parser.add_argument('--input', type=str, default="This algorithm is being created in order to")
     parser.add_argument('--approx_model_name', type=str, default=MODELZOO["llama2-7b"])
     parser.add_argument('--target_model_name', type=str, default=MODELZOO["llama2-70b"])
+    parser.add_argument('--approx_tmp', type=float, default=1.0, help='temperature for approx model')
+    parser.add_argument('--target_tmp', type=float, default=1.0, help='temperature for target model')
     parser.add_argument('--verbose', '-v', action='store_true', default=False, help='enable verbose mode')
     parser.add_argument('--seed', '-s', type=int, default=None, help='set a random seed, which can makes the result reproducible')
     parser.add_argument('--benchmark', '-b', action='store_true', default=False, help='show benchmark results.')
@@ -69,7 +70,7 @@ def benchmark(fn, print_prefix, use_profiler=True, *args, **kwargs):
 
     print(f"\n [benchmark] {print_prefix}, tokens/sec: {len(output[0]) / (t.elapsed / TEST_TIME)}, {t.elapsed / TEST_TIME} sec generates {len(output[0])} tokens")
 
-def generate(input_text, approx_model_name, target_model_name, num_tokens=20, gamma = 4,
+def generate(input_text, approx_model_name, target_model_name, num_tokens=20, gamma = 4, approx_tmp = 1.0, target_tmp = 1.0,
              random_seed = None, verbose = False, use_benchmark = False, use_profiling = False):
     # NOTE() approx_model_name and target_model_name should use the same tokenizer!
     
@@ -98,39 +99,44 @@ def generate(input_text, approx_model_name, target_model_name, num_tokens=20, ga
     top_p = 0.9
 
     torch.manual_seed(123)
-    output = autoregressive_sampling(input_ids, large_model, num_tokens, top_k = top_k, top_p=top_p)
+    output = autoregressive_sampling(input_ids, large_model, num_tokens, temperature = approx_tmp, top_k = top_k, top_p=top_p)
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
     color_print(f"large (target) model autoregressive_sampling: {generated_text}")
     
     if use_benchmark:
         benchmark(autoregressive_sampling, "AS_large", use_profiling,
-                  input_ids, large_model, num_tokens, top_k = top_k, top_p=top_p)
+                  input_ids, large_model, num_tokens, temperature = approx_tmp, top_k = top_k, top_p=top_p)
 
     torch.manual_seed(123)
-    output = autoregressive_sampling(input_ids, small_model, num_tokens, top_k = top_k, top_p=top_p)
+    output = autoregressive_sampling(input_ids, small_model, num_tokens, temperature = target_tmp, top_k = top_k, top_p=top_p)
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
     color_print(f"small (approx) model autoregressive_sampling: {generated_text}")
     
     if use_benchmark:
         benchmark(autoregressive_sampling, "AS_small", use_profiling,
-                  input_ids, small_model, num_tokens, top_k = top_k, top_p=top_p)
+                  input_ids, small_model, num_tokens, temperature = target_tmp, top_k = top_k, top_p=top_p)
     
+    '''
     torch.manual_seed(123)
     output = speculative_sampling_v2(input_ids, small_model, large_model, num_tokens, top_k = top_k, top_p=top_p, random_seed = random_seed)
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
-    color_print(f"deepmind's speculative_sampling: {generated_text}")   
-
+    color_print(f"deepmind's speculative_sampling: {generated_text}")  
+    '''
+    
     torch.manual_seed(123)
-    output = speculative_sampling(input_ids, small_model, large_model, num_tokens, gamma = gamma, top_k = top_k, top_p=top_p, random_seed = random_seed, verbose = verbose)
+    output = speculative_sampling(input_ids, small_model, large_model, num_tokens, gamma = gamma, approx_tmp = approx_tmp, target_tmp = target_tmp,
+                                  top_k = top_k, top_p=top_p, random_seed = random_seed, verbose = verbose)
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
     color_print(f"google's speculative_sampling: {generated_text}")
     
     if use_benchmark:
         benchmark(speculative_sampling, "SP", use_profiling,
-                  input_ids, small_model, large_model, max_len = num_tokens, gamma = gamma, top_k = top_k, top_p=top_p, random_seed = random_seed)
+                  input_ids, small_model, large_model, max_len = num_tokens, gamma = gamma, approx_tmp = approx_tmp, target_tmp = target_tmp,
+                  top_k = top_k, top_p=top_p, random_seed = random_seed, benchmark = True)
 
 if __name__ == "__main__":
     args = parse_arguments()
     
     generate(args.input, MODELZOO[args.approx_model_name], MODELZOO[args.target_model_name], num_tokens=args.max_tokens, gamma=args.gamma,
+             approx_tmp = args.approx_tmp, target_tmp = args.target_tmp,
              random_seed = args.seed, verbose=args.verbose, use_benchmark = args.benchmark)
