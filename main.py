@@ -26,8 +26,8 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='args for main.py')
 
     parser.add_argument('--input', type=str, default="This algorithm is being created in order to")
-    parser.add_argument('--approx_model_name', type=str, default=MODELZOO["llama2-7b"])
-    parser.add_argument('--target_model_name', type=str, default=MODELZOO["llama2-70b"])
+    parser.add_argument('--approx_model_name', type=str, default="llama2-7b")
+    parser.add_argument('--target_model_name', type=str, default="llama2-70b")
     parser.add_argument('--approx_tmp', type=float, default=1.0, help='temperature for approx model')
     parser.add_argument('--target_tmp', type=float, default=1.0, help='temperature for target model')
     parser.add_argument('--verbose', '-v', action='store_true', default=False, help='enable verbose mode')
