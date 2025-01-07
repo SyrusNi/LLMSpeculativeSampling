@@ -4,6 +4,9 @@ from typing import Optional
 from sampling.utils import norm_logits, sample
 from transformers.models.bloom.modeling_bloom import BloomForCausalLM
 
+import time
+from torch.nn import functional as F
+
 def _debug_show_kvcache(past_key_values):
     if  past_key_values is None:
         return
@@ -47,20 +50,32 @@ class KVCacheModel():
                 print(f"last_input_id shape {last_input_id.shape}")
                 _debug_show_kvcache(self._past_key_values)
             
+            torch.cuda.synchronize()
+            t0 = time.time()
             outputs = self._model(last_input_id, past_key_values=self._past_key_values, use_cache=True)
             
             not_cached_q = outputs.logits
             if not_cached_q.dim() == 2:
                 not_cached_q = torch.unsqueeze(not_cached_q, 0)
-                
+            
+            torch.cuda.synchronize()
+            t1 = time.time()
+            
             for i in range(not_cached_q.shape[-2]):   
-                not_cached_q[:, i, :] = norm_logits(not_cached_q[:, i, :], self._temperature, self._top_k, self._top_p)    
-                
+                not_cached_q[:, i, :] = norm_logits(not_cached_q[:, i, :], self._temperature, self._top_k, self._top_p)  
+            
+            #not_cached_q = F.softmax(not_cached_q, dim=2)
+            torch.cuda.synchronize()
+            t2 = time.time()
             self._prob_history = torch.cat([self._prob_history, not_cached_q], dim=1)
             
             last_q = not_cached_q[:, -1, :]
             self._past_key_values = outputs.past_key_values
-        
+            
+            if self.gamma == 1:
+                print(f'gamma: {self.gamma} {outputs.logits.shape[-2]}, computation: {t1 - t0}, softmax: {t2 - t1}')
+                #print(f'sum: {torch.sum(last_q)}')
+                #torch.cuda.synchronize()
         return last_q
 
 
@@ -77,11 +92,18 @@ class KVCacheModel():
             Torch.Tensor: prefix+generated tokens
         """
         x = prefix
-
+        self.gamma = gamma
         for _ in range(gamma):
+            t3 = time.time()
             q = self._forward_with_kvcache(x, use_debug)
+            t4 = time.time()
             next_tok = sample(q)
+            t5 = time.time()
             x = torch.cat((x, next_tok), dim=1)
+            t6 = time.time()
+            if gamma == 1:
+                print(f'forward: {t4 - t3}, sample: {t5 - t4}, else: {t6-t5}')
+                #torch.save(q, './prob.pt')
         return x
 
     @torch.no_grad()

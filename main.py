@@ -48,7 +48,7 @@ def benchmark(fn, print_prefix, use_profiler=True, *args, **kwargs):
     '''
     repeat the fn for [TEST_TIME] and test the average time cost
     '''
-    TEST_TIME = 10
+    TEST_TIME = 1
     profile_filename = f"./profile_logs/{print_prefix}"
     
     with contexttimer.Timer() as t:

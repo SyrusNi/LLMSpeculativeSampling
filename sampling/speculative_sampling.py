@@ -6,6 +6,8 @@ from sampling.kvcache_model import KVCacheModel
 from sampling.utils import norm_logits, sample, max_fn
 from globals import Decoder
 
+import time
+
 @torch.no_grad()
 def speculative_sampling(prefix : torch.Tensor, approx_model : torch.nn.Module, target_model : torch.nn.Module, 
                          max_len : int , gamma : int = 4,
@@ -51,8 +53,11 @@ def speculative_sampling(prefix : torch.Tensor, approx_model : torch.nn.Module, 
         # q = M_q[prefix + x_0, x_1, .., x_(gamma-2)]
         prefix_len = prefix.shape[1]
 
+        t0 = time.time()
         x = approx_model_cache.generate(prefix, gamma)
+        t1 = time.time()
         _ = target_model_cache.generate(x, 1)
+        t2 = time.time()
         
         n = prefix_len + gamma - 1
         
@@ -100,10 +105,14 @@ def speculative_sampling(prefix : torch.Tensor, approx_model : torch.nn.Module, 
         
         prefix = torch.cat((prefix, t), dim=1)
 
+        t3 = time.time()
+        if not benchmark:
+            print(f'approx_model time {t1 - t0}, target_model time {t2 - t1}, accept and reject {t3 - t2}')
+
     if not benchmark: # avoid the report in the benchmark stage
         print()
         print(f"generated tokens numbers {prefix.shape[-1] - seq_len}, accepted_count {accepted_count}, target_sample_count {target_sample_count}, resample_count {resample_count}")
-        print(f"average accepted length {accepted_count/(target_sample_count+resample_count)}")
+        print(f"average accepted length {accepted_count/(target_sample_count+resample_count)}, total token numbers {prefix.shape[-1]}")
     return prefix
 
 
