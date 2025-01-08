@@ -1,10 +1,11 @@
+# use assisted generation in transformer library and test the speed up
+
 import torch
 import argparse
 import contexttimer
 from colorama import Fore, Style
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM # for T5 series model
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-from sampling import autoregressive_sampling, speculative_sampling, speculative_sampling_v2
 from globals import Decoder
 
 MODELZOO = {
@@ -103,22 +104,26 @@ def generate(input_text, approx_model_name, target_model_name, num_tokens=20, ga
     top_p = 0.9
 
     torch.manual_seed(123)
-    output = autoregressive_sampling(input_ids, large_model, num_tokens, temperature = approx_tmp, top_k = top_k, top_p=top_p)
+    output = large_model.generate(input_ids, max_new_tokens = num_tokens, 
+                                  do_sample = True, temperature = approx_tmp, top_k = top_k, top_p=top_p)
+    #output = autoregressive_sampling(input_ids, large_model, num_tokens, temperature = approx_tmp, top_k = top_k, top_p=top_p)
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
     color_print(f"large (target) model autoregressive_sampling: {generated_text}")
     
     if use_benchmark:
-        benchmark(autoregressive_sampling, "AS_large", test_time, use_profiling,
-                  input_ids, large_model, num_tokens, temperature = approx_tmp, top_k = top_k, top_p=top_p)
+        benchmark(large_model.generate, "AS_large", test_time, use_profiling,
+                  input_ids, max_new_tokens = num_tokens, do_sample = True, temperature = approx_tmp, top_k = top_k, top_p=top_p)
 
     torch.manual_seed(123)
-    output = autoregressive_sampling(input_ids, small_model, num_tokens, temperature = target_tmp, top_k = top_k, top_p=top_p)
+    output = small_model.generate(input_ids, max_new_tokens = num_tokens, 
+                                  do_sample = True, temperature = target_tmp, top_k = top_k, top_p=top_p)
+    #output = autoregressive_sampling(input_ids, small_model, num_tokens, temperature = target_tmp, top_k = top_k, top_p=top_p)
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
     color_print(f"small (approx) model autoregressive_sampling: {generated_text}")
     
     if use_benchmark:
-        benchmark(autoregressive_sampling, "AS_small", test_time, use_profiling,
-                  input_ids, small_model, num_tokens, temperature = target_tmp, top_k = top_k, top_p=top_p)
+        benchmark(small_model.generate, "AS_large", test_time, use_profiling,
+                  input_ids, max_new_tokens = num_tokens, do_sample = True, temperature = target_tmp, top_k = top_k, top_p=top_p)
     
     '''
     torch.manual_seed(123)
@@ -128,15 +133,15 @@ def generate(input_text, approx_model_name, target_model_name, num_tokens=20, ga
     '''
     
     torch.manual_seed(123)
-    output = speculative_sampling(input_ids, small_model, large_model, num_tokens, gamma = gamma, approx_tmp = approx_tmp, target_tmp = target_tmp,
-                                  top_k = top_k, top_p=top_p, random_seed = random_seed, verbose = verbose)
+    output = large_model.generate(input_ids, assistant_model=small_model, max_new_tokens = num_tokens, 
+                                  do_sample = True, temperature = target_tmp, top_k = top_k, top_p = top_p)
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
     color_print(f"google's speculative_sampling: {generated_text}")
     
     if use_benchmark:
-        benchmark(speculative_sampling, "SP", test_time, use_profiling,
-                  input_ids, small_model, large_model, max_len = num_tokens, gamma = gamma, approx_tmp = approx_tmp, target_tmp = target_tmp,
-                  top_k = top_k, top_p=top_p, random_seed = random_seed, benchmark = True)
+        benchmark(large_model.generate, "SP", test_time, use_profiling,
+                  input_ids, assistant_model = small_model, max_new_tokens = num_tokens, 
+                  do_sample = True, temperature = target_tmp, top_k = top_k, top_p = top_p)
 
 if __name__ == "__main__":
     args = parse_arguments()
