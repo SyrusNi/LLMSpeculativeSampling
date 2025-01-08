@@ -86,14 +86,14 @@ def generate(input_text, approx_model_name, target_model_name, num_tokens=20, ga
     
     print(f"begin loading models: \n {approx_model_name} \n {target_model_name}")
     small_model = AutoModelForCausalLM.from_pretrained(approx_model_name, 
-                                                       #torch_dtype=torch.float16,
+                                                       torch_dtype=torch.float16,
                                                        device_map="auto",
-                                                       load_in_4bit=True,
+                                                       #load_in_4bit=True,
                                                        trust_remote_code=True)
     large_model = AutoModelForCausalLM.from_pretrained(target_model_name, 
-                                                       #torch_dtype=torch.float16,
+                                                       torch_dtype=torch.float16,
                                                        device_map="auto",
-                                                       load_in_4bit=True,
+                                                       #load_in_4bit=True,
                                                        trust_remote_code=True)
     print("finish loading models")
     
