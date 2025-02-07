@@ -87,14 +87,14 @@ def generate(input_text, approx_model_name, target_model_name, num_tokens=20, ga
     
     print(f"begin loading models: \n {approx_model_name} \n {target_model_name}")
     small_model = AutoModelForCausalLM.from_pretrained(approx_model_name, 
-                                                       #torch_dtype=torch.float16,
+                                                       torch_dtype=torch.float16,
                                                        device_map="auto",
-                                                       load_in_4bit=True,
+                                                       #load_in_4bit=True,
                                                        trust_remote_code=True)
     large_model = AutoModelForCausalLM.from_pretrained(target_model_name, 
-                                                       #torch_dtype=torch.float16,
+                                                       torch_dtype=torch.float16,
                                                        device_map="auto",
-                                                       load_in_4bit=True,
+                                                       #load_in_4bit=True,
                                                        trust_remote_code=True)
     print("finish loading models")
     
@@ -122,7 +122,7 @@ def generate(input_text, approx_model_name, target_model_name, num_tokens=20, ga
     color_print(f"small (approx) model autoregressive_sampling: {generated_text}")
     
     if use_benchmark:
-        benchmark(small_model.generate, "AS_large", test_time, use_profiling,
+        benchmark(small_model.generate, "AS_small", test_time, use_profiling,
                   input_ids, max_new_tokens = num_tokens, do_sample = True, temperature = target_tmp, top_k = top_k, top_p=top_p)
     
     '''
